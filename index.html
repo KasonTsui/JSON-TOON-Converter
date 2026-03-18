@@ -2,16 +2,603 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/JSON-TOON-Converter/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="JSON-TOON-Converter: Convert JSON to compact TOON format to save LLM tokens" />
     <title>JSON-TOON-Converter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'monospace'],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      textarea {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        resize: vertical;
+      }
+      textarea::-webkit-scrollbar { width: 6px; }
+      textarea::-webkit-scrollbar-track { background: transparent; }
+      textarea::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+      .dark textarea::-webkit-scrollbar-thumb { background: #4b5563; }
+      textarea::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+      .dark textarea::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+  <body class="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+
+    <!-- ========== Header ========== -->
+    <header class="relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent"></div>
+      <div class="relative px-6 py-5 flex items-center justify-between max-w-7xl mx-auto">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center justify-center w-10 h-10 bg-white/20 rounded-xl backdrop-blur-sm shadow-lg">
+            <span class="text-xl">⚡</span>
+          </div>
+          <div>
+            <h1 class="text-white text-xl font-bold tracking-tight leading-none">JSON-TOON-Converter</h1>
+            <p class="text-white/70 text-xs mt-0.5">Compact JSON format · Save LLM tokens</p>
+          </div>
+        </div>
+        <button
+          id="darkModeToggle"
+          aria-label=""
+          class="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25
+                 text-white text-sm font-medium rounded-xl backdrop-blur-sm
+                 transition-all duration-200 active:scale-95 border border-white/20"
+        >
+          <span id="darkModeIcon" class="text-base">🌙</span>
+          <span id="darkModeLabel" class="hidden sm:inline">Dark</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========== Main ========== -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-5">
+
+      <!-- Converter panels -->
+      <div class="flex flex-col lg:flex-row gap-4">
+
+        <!-- JSON Panel -->
+        <div class="flex flex-col rounded-xl border border-indigo-200 dark:border-indigo-700 shadow-sm overflow-hidden bg-white dark:bg-gray-800 flex-1 min-w-0">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/30 border-b border-indigo-100 dark:border-indigo-800">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">JSON</span>
+              <span class="text-xs px-2 py-0.5 rounded-full border font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700">Input / Output</span>
+            </div>
+            <button id="copyJson" title="Copy to clipboard"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                     transition-all duration-150 active:scale-95
+                     bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="jsonError" class="hidden px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium animate-fade-in"></div>
+          <div class="flex-1 relative">
+            <textarea id="jsonInput" spellcheck="false"
+              placeholder="Paste or type JSON here...&#10;&#10;Example:&#10;{&#10;  &quot;name&quot;: &quot;Alice&quot;,&#10;  &quot;age&quot;: 30&#10;}"
+              class="w-full h-full min-h-[320px] p-4 text-sm font-mono
+                     bg-transparent text-gray-800 dark:text-gray-100
+                     placeholder-gray-400 dark:placeholder-gray-500
+                     outline-none resize-none leading-relaxed"></textarea>
+          </div>
+        </div>
+
+        <!-- Arrow divider -->
+        <div class="flex lg:flex-col items-center justify-center gap-1 py-2 lg:py-0">
+          <div class="hidden lg:flex flex-col items-center gap-1">
+            <div class="text-gray-300 dark:text-gray-600 text-xl">⇅</div>
+            <span class="text-xs text-gray-400 dark:text-gray-500 font-medium">auto</span>
+          </div>
+          <div class="lg:hidden flex items-center gap-2 text-gray-400 dark:text-gray-500">
+            <div class="h-px w-16 bg-gray-300 dark:bg-gray-600"></div>
+            <span class="text-lg">⇄</span>
+            <div class="h-px w-16 bg-gray-300 dark:bg-gray-600"></div>
+          </div>
+        </div>
+
+        <!-- TOON Panel -->
+        <div class="flex flex-col rounded-xl border border-purple-200 dark:border-purple-700 shadow-sm overflow-hidden bg-white dark:bg-gray-800 flex-1 min-w-0">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-purple-50 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-800">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-purple-600 dark:text-purple-400">TOON</span>
+              <span class="text-xs px-2 py-0.5 rounded-full border font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700">Compact Format</span>
+            </div>
+            <button id="copyToon" title="Copy to clipboard"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                     transition-all duration-150 active:scale-95
+                     bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="toonError" class="hidden px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium animate-fade-in"></div>
+          <div class="flex-1 relative">
+            <textarea id="toonInput" spellcheck="false"
+              placeholder="TOON output appears here...&#10;&#10;Example:&#10;{name:&quot;Alice&quot;,age:30}"
+              class="w-full h-full min-h-[320px] p-4 text-sm font-mono
+                     bg-transparent text-gray-800 dark:text-gray-100
+                     placeholder-gray-400 dark:placeholder-gray-500
+                     outline-none resize-none leading-relaxed"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Token Stats -->
+      <div class="w-full">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+          <span class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-2">Token Stats</span>
+          <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <!-- JSON Tokens -->
+          <div class="flex items-center gap-3 px-4 py-3 rounded-xl border bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 shadow-sm">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-800 text-base flex-shrink-0">
+              <span>{ }</span>
+            </div>
+            <div class="min-w-0">
+              <div id="jsonTokenCount" class="text-lg font-bold leading-none text-indigo-600 dark:text-indigo-400">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">JSON Tokens</div>
+            </div>
+          </div>
+          <!-- TOON Tokens -->
+          <div class="flex items-center gap-3 px-4 py-3 rounded-xl border bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800 shadow-sm">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-800 text-base flex-shrink-0">
+              <span>⚡</span>
+            </div>
+            <div class="min-w-0">
+              <div id="toonTokenCount" class="text-lg font-bold leading-none text-purple-600 dark:text-purple-400">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">TOON Tokens</div>
+            </div>
+          </div>
+          <!-- Tokens Saved -->
+          <div id="savedCard" class="flex items-center gap-3 px-4 py-3 rounded-xl border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+            <div id="savedIconWrap" class="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 text-base flex-shrink-0">
+              <span>✂</span>
+            </div>
+            <div class="min-w-0">
+              <div id="savedCount" class="text-lg font-bold leading-none text-gray-500 dark:text-gray-400">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">Tokens Saved</div>
+            </div>
+          </div>
+          <!-- % Saved -->
+          <div id="pctCard" class="flex items-center gap-3 px-4 py-3 rounded-xl border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+            <div id="pctIconWrap" class="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 text-base flex-shrink-0">
+              <span>📉</span>
+            </div>
+            <div class="min-w-0">
+              <div id="pctSaved" class="text-lg font-bold leading-none text-gray-500 dark:text-gray-400">0%</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">% Saved</div>
+            </div>
+          </div>
+        </div>
+        <div id="tokenProgressBar" class="hidden mt-3 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div id="tokenProgressFill" class="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 rounded-full transition-all duration-500" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- Conversion History -->
+      <div class="w-full">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+          <span class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-2">Conversion History</span>
+          <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+        <p id="historyEmpty" class="text-center text-sm text-gray-400 dark:text-gray-500 py-6">
+          No history yet — start converting to see entries here.
+        </p>
+        <div id="historyList" class="hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <span id="historyCountLabel" class="text-xs text-gray-500 dark:text-gray-400">0 entries · click to restore</span>
+            <button id="clearHistory" class="text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors duration-150">
+              Clear all
+            </button>
+          </div>
+          <ul id="historyItems" class="divide-y divide-gray-100 dark:divide-gray-700 max-h-64 overflow-y-auto"></ul>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="text-center text-xs text-gray-400 dark:text-gray-600 pb-4">
+        TOON format · token count approximated as <code class="font-mono">⌈chars / 4⌉</code>
+      </footer>
+    </main>
+
+    <script>
+      // ================================================================
+      // TOON Converter Logic
+      // ================================================================
+      function valueToToon(value) {
+        if (value === null) return 'null'
+        if (typeof value === 'boolean') return String(value)
+        if (typeof value === 'number') return String(value)
+        if (typeof value === 'string') return JSON.stringify(value)
+        if (Array.isArray(value)) {
+          return '[' + value.map(valueToToon).join(',') + ']'
+        }
+        if (typeof value === 'object') {
+          const pairs = Object.entries(value).map(([k, v]) => {
+            const key = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : JSON.stringify(k)
+            return key + ':' + valueToToon(v)
+          })
+          return '{' + pairs.join(',') + '}'
+        }
+        return String(value)
+      }
+
+      function jsonToToon(jsonString) {
+        if (!jsonString || !jsonString.trim()) return ''
+        const parsed = JSON.parse(jsonString)
+        return valueToToon(parsed)
+      }
+
+      function toonToJson(toonString) {
+        if (!toonString || !toonString.trim()) return ''
+        const quoted = toonString.replace(
+          /([{,])\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,
+          '$1"$2":'
+        )
+        const parsed = JSON.parse(quoted)
+        return JSON.stringify(parsed, null, 2)
+      }
+
+      function approximateTokens(text) {
+        if (!text) return 0
+        return Math.ceil(text.length / 4)
+      }
+
+      // ================================================================
+      // Constants & State
+      // ================================================================
+      const HISTORY_KEY = 'toon_history'
+      const MAX_HISTORY = 20
+      const DEBOUNCE_MS = 300
+      const INITIAL_JSON = `{
+  "name": "JSON-TOON-Converter",
+  "version": "1.0.0",
+  "features": ["bidirectional", "token-saving", "dark-mode"],
+  "author": {
+    "github": "kasontsui",
+    "homepage": "https://kasontsui.github.io/JSON-TOON-Converter"
+  },
+  "compact": true
+}`
+
+      let history = []
+      let debounceTimer = null
+      let isDarkMode = false
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(HISTORY_KEY)
+          return raw ? JSON.parse(raw) : []
+        } catch { return [] }
+      }
+
+      function persistHistory(h) {
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)) } catch {}
+      }
+
+      // ================================================================
+      // DOM References
+      // ================================================================
+      const jsonInput         = document.getElementById('jsonInput')
+      const toonInput         = document.getElementById('toonInput')
+      const jsonErrorEl       = document.getElementById('jsonError')
+      const toonErrorEl       = document.getElementById('toonError')
+      const copyJsonBtn       = document.getElementById('copyJson')
+      const copyToonBtn       = document.getElementById('copyToon')
+      const darkModeToggle    = document.getElementById('darkModeToggle')
+      const darkModeIcon      = document.getElementById('darkModeIcon')
+      const darkModeLabel     = document.getElementById('darkModeLabel')
+      const jsonTokenCountEl  = document.getElementById('jsonTokenCount')
+      const toonTokenCountEl  = document.getElementById('toonTokenCount')
+      const savedCountEl      = document.getElementById('savedCount')
+      const savedCard         = document.getElementById('savedCard')
+      const savedIconWrap     = document.getElementById('savedIconWrap')
+      const pctSavedEl        = document.getElementById('pctSaved')
+      const pctCard           = document.getElementById('pctCard')
+      const pctIconWrap       = document.getElementById('pctIconWrap')
+      const tokenProgressBar  = document.getElementById('tokenProgressBar')
+      const tokenProgressFill = document.getElementById('tokenProgressFill')
+      const historyEmpty      = document.getElementById('historyEmpty')
+      const historyList       = document.getElementById('historyList')
+      const historyCountLabel = document.getElementById('historyCountLabel')
+      const historyItems      = document.getElementById('historyItems')
+      const clearHistoryBtn   = document.getElementById('clearHistory')
+
+      // ================================================================
+      // Dark Mode
+      // ================================================================
+      function initDarkMode() {
+        const stored = localStorage.getItem('toon_dark_mode')
+        isDarkMode = stored !== null
+          ? JSON.parse(stored)
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+        applyDarkMode()
+      }
+
+      function applyDarkMode() {
+        document.documentElement.classList.toggle('dark', isDarkMode)
+        localStorage.setItem('toon_dark_mode', JSON.stringify(isDarkMode))
+        darkModeIcon.textContent = isDarkMode ? '☀️' : '🌙'
+        darkModeLabel.textContent = isDarkMode ? 'Light' : 'Dark'
+        darkModeToggle.setAttribute('aria-label', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode')
+      }
+
+      darkModeToggle.addEventListener('click', () => {
+        isDarkMode = !isDarkMode
+        applyDarkMode()
+      })
+
+      // ================================================================
+      // Error display
+      // ================================================================
+      function showError(el, msg) {
+        if (msg) {
+          el.textContent = '⚠ ' + msg
+          el.classList.remove('hidden')
+        } else {
+          el.textContent = ''
+          el.classList.add('hidden')
+        }
+      }
+
+      // ================================================================
+      // Token Stats
+      // ================================================================
+      function updateTokenStats() {
+        const jt = approximateTokens(jsonInput.value)
+        const tt = approximateTokens(toonInput.value)
+        const saved = Math.max(0, jt - tt)
+        const pct = jt > 0 ? Math.round((saved / jt) * 100) : 0
+
+        jsonTokenCountEl.textContent = jt.toLocaleString()
+        toonTokenCountEl.textContent = tt.toLocaleString()
+        savedCountEl.textContent = saved.toLocaleString()
+        pctSavedEl.textContent = pct + '%'
+
+        if (saved > 0) {
+          savedCard.className = 'flex items-center gap-3 px-4 py-3 rounded-xl border bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 shadow-sm'
+          savedIconWrap.className = 'flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-800 text-base flex-shrink-0'
+          savedCountEl.className = 'text-lg font-bold leading-none text-emerald-600 dark:text-emerald-400'
+        } else {
+          savedCard.className = 'flex items-center gap-3 px-4 py-3 rounded-xl border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm'
+          savedIconWrap.className = 'flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 text-base flex-shrink-0'
+          savedCountEl.className = 'text-lg font-bold leading-none text-gray-500 dark:text-gray-400'
+        }
+
+        if (pct > 0) {
+          pctCard.className = 'flex items-center gap-3 px-4 py-3 rounded-xl border bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800 shadow-sm'
+          pctIconWrap.className = 'flex items-center justify-center w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-800 text-base flex-shrink-0'
+          pctSavedEl.className = 'text-lg font-bold leading-none text-rose-600 dark:text-rose-400'
+          tokenProgressBar.classList.remove('hidden')
+          tokenProgressFill.style.width = (100 - pct) + '%'
+          tokenProgressFill.title = 'TOON uses ' + (100 - pct) + '% of the original tokens'
+        } else {
+          pctCard.className = 'flex items-center gap-3 px-4 py-3 rounded-xl border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm'
+          pctIconWrap.className = 'flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 text-base flex-shrink-0'
+          pctSavedEl.className = 'text-lg font-bold leading-none text-gray-500 dark:text-gray-400'
+          tokenProgressBar.classList.add('hidden')
+        }
+      }
+
+      // ================================================================
+      // History
+      // ================================================================
+      function formatTime(ts) {
+        return new Date(ts).toLocaleString(undefined, {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        })
+      }
+
+      function truncate(str, max) {
+        max = max || 60
+        if (!str) return '—'
+        const single = str.replace(/\s+/g, ' ').trim()
+        return single.length > max ? single.slice(0, max) + '…' : single
+      }
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      }
+
+      function addToHistory(json, toon) {
+        if (!json.trim() || !toon.trim()) return
+        if (history.length > 0 && history[0].toonText === toon) return
+        const entry = { id: Date.now(), timestamp: Date.now(), jsonText: json, toonText: toon }
+        history = [entry, ...history].slice(0, MAX_HISTORY)
+        persistHistory(history)
+        renderHistory()
+      }
+
+      function renderHistory() {
+        if (history.length === 0) {
+          historyEmpty.classList.remove('hidden')
+          historyList.classList.add('hidden')
+          return
+        }
+        historyEmpty.classList.add('hidden')
+        historyList.classList.remove('hidden')
+
+        const count = history.length
+        historyCountLabel.textContent = count + ' entr' + (count === 1 ? 'y' : 'ies') + ' · click to restore'
+
+        historyItems.innerHTML = ''
+        history.forEach((entry, idx) => {
+          const li = document.createElement('li')
+          const btn = document.createElement('button')
+          btn.className = 'w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors duration-100 group animate-fade-in'
+          btn.innerHTML =
+            '<div class="flex items-center justify-between gap-2">' +
+              '<div class="flex items-center gap-2 min-w-0">' +
+                '<span class="flex-shrink-0 text-xs font-mono font-semibold text-gray-400 dark:text-gray-500 w-5 text-right">' + (idx + 1) + '.</span>' +
+                '<span class="truncate text-sm font-mono text-gray-700 dark:text-gray-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">' + escapeHtml(truncate(entry.toonText)) + '</span>' +
+              '</div>' +
+              '<span class="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">' + formatTime(entry.timestamp) + '</span>' +
+            '</div>' +
+            '<div class="ml-7 mt-0.5 text-xs text-gray-400 dark:text-gray-500 truncate">JSON: ' + escapeHtml(truncate(entry.jsonText, 80)) + '</div>'
+          btn.addEventListener('click', () => {
+            jsonInput.value = entry.jsonText
+            toonInput.value = entry.toonText
+            showError(jsonErrorEl, '')
+            showError(toonErrorEl, '')
+            updateTokenStats()
+          })
+          li.appendChild(btn)
+          historyItems.appendChild(li)
+        })
+      }
+
+      clearHistoryBtn.addEventListener('click', () => {
+        history = []
+        persistHistory([])
+        renderHistory()
+      })
+
+      // ================================================================
+      // Conversion
+      // ================================================================
+      function convertJsonToToon(json) {
+        try {
+          const result = jsonToToon(json)
+          toonInput.value = result
+          showError(jsonErrorEl, '')
+          showError(toonErrorEl, '')
+          if (result) addToHistory(json, result)
+        } catch (e) {
+          showError(jsonErrorEl, e.message)
+          toonInput.value = ''
+        }
+        updateTokenStats()
+      }
+
+      function convertToonToJson(toon) {
+        try {
+          const result = toonToJson(toon)
+          jsonInput.value = result
+          showError(toonErrorEl, '')
+          showError(jsonErrorEl, '')
+          if (result) addToHistory(result, toon)
+        } catch (e) {
+          showError(toonErrorEl, e.message)
+          jsonInput.value = ''
+        }
+        updateTokenStats()
+      }
+
+      jsonInput.addEventListener('input', function () {
+        showError(jsonErrorEl, '')
+        clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(function () {
+          if (jsonInput.value.trim()) {
+            convertJsonToToon(jsonInput.value)
+          } else {
+            toonInput.value = ''
+            showError(toonErrorEl, '')
+            updateTokenStats()
+          }
+        }, DEBOUNCE_MS)
+      })
+
+      toonInput.addEventListener('input', function () {
+        showError(toonErrorEl, '')
+        clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(function () {
+          if (toonInput.value.trim()) {
+            convertToonToJson(toonInput.value)
+          } else {
+            jsonInput.value = ''
+            showError(jsonErrorEl, '')
+            updateTokenStats()
+          }
+        }, DEBOUNCE_MS)
+      })
+
+      // ================================================================
+      // Copy buttons
+      // ================================================================
+      const SVG_COPY = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>'
+      const SVG_CHECK = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>'
+      const CLS_COPY = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 active:scale-95 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+      const CLS_COPIED = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 active:scale-95 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+
+      function setupCopyButton(btn, getTextFn) {
+        btn.addEventListener('click', async function () {
+          const text = getTextFn()
+          if (!text) return
+          let success = false
+          try {
+            await navigator.clipboard.writeText(text)
+            success = true
+          } catch {
+            try {
+              const el = document.createElement('textarea')
+              el.value = text
+              el.style.position = 'fixed'
+              el.style.opacity = '0'
+              document.body.appendChild(el)
+              el.select()
+              // eslint-disable-next-line no-unused-expressions
+              document.execCommand('copy')
+              document.body.removeChild(el)
+              success = true
+            } catch {
+              // Copy not supported in this environment
+            }
+          }
+          if (success) {
+            btn.innerHTML = SVG_CHECK + ' Copied!'
+            btn.className = CLS_COPIED
+            setTimeout(function () {
+              btn.innerHTML = SVG_COPY + ' Copy'
+              btn.className = CLS_COPY
+            }, 2000)
+          } else {
+            btn.innerHTML = '⚠ Failed'
+            setTimeout(function () {
+              btn.innerHTML = SVG_COPY + ' Copy'
+            }, 2000)
+          }
+        })
+      }
+
+      setupCopyButton(copyJsonBtn, function () { return jsonInput.value })
+      setupCopyButton(copyToonBtn, function () { return toonInput.value })
+
+      // ================================================================
+      // Init
+      // ================================================================
+      initDarkMode()
+      history = loadHistory()
+      renderHistory()
+      jsonInput.value = INITIAL_JSON
+      convertJsonToToon(INITIAL_JSON)
+    </script>
   </body>
 </html>
